@@ -23,8 +23,9 @@ uniform format once per session, right after the first user message:
 
 - PR link in the first user message →
   `[repo] KEY-123 Review pull/N <PR title>`
-- otherwise, inside a git project →
-  `[project] KEY-123 <opencode auto-title>`
+- otherwise, in a project directory (a git repo, or a plain directory
+  without `.git`) → `[project] <opencode auto-title>`, with the issue key
+  when the branch has one
 
 The plugin is deterministic by default (no LLM calls). Optional LLM modes —
 `smartShorten` (shorten overlong titles) and `prLinkLlm` (ask which PR the
@@ -242,9 +243,11 @@ inside its adapter rather than duplicating it in each prompt helper.
 - Tests drive V1 hooks, the V2 event stream and the shared lifecycle with
   mock SDK contexts and assert captured title writes; prefer behavior-level
   assertions over internals.
-- Fixtures (plain git projects — one on a keyed branch — and a linked
-  worktree pair) are created under `.test-fixtures/` next to the repo because
-  the plugin ignores sessions in temp/scratch directories.
+- Fixtures (plain git projects — one on a keyed branch — a linked
+  worktree pair, a symlinked `.git` entry, and a non-git directory) are
+  created in a fresh sibling directory of the checkout: the plugin ignores
+  sessions in temp/scratch directories and walks up to the nearest `.git`,
+  so a non-git fixture inside the checkout would resolve to this repo.
 - PR cases hit the real `gh` CLI (`gh auth login` required); keep them few
   and stable.
 - Every behavior change updates or adds tests before the task is done; all
