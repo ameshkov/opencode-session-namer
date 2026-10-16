@@ -24,11 +24,13 @@ async function branchAgKey(
 
 /**
  * Normalizes a path for comparison: forward slashes, no trailing slash.
+ * The POSIX root stays `/`, so the ancestor walk ends there instead of
+ * stepping to an empty, cwd-relative path.
  * @param path path to normalize
  * @returns normalized path
  */
 function normalizePath(path: string): string {
-    return path.replace(/\\/g, '/').replace(/\/+$/, '');
+    return path.replace(/\\/g, '/').replace(/(.)\/+$/, '$1');
 }
 
 /**
@@ -59,7 +61,7 @@ async function homePaths(): Promise<Set<string>> {
  * the resolved cwd.
  * @returns absolute scratch roots without a trailing slash
  */
-async function scratchRoots(): Promise<string[]> {
+async function resolveScratchRoots(): Promise<string[]> {
     const candidates = new Set([
         tmpdir(),
         '/tmp',
@@ -76,9 +78,19 @@ async function scratchRoots(): Promise<string[]> {
             // the location does not exist on this system
         }
     }
-    return [...candidates]
-        .map((candidate) => normalizePath(candidate))
-        .filter((candidate) => candidate !== '');
+    return [...candidates].map((candidate) => normalizePath(candidate));
+}
+
+let scratchRootsCache: Promise<string[]> | undefined;
+
+/**
+ * Scratch roots, resolved once per process: the temp locations do not
+ * change while the plugin runs.
+ * @returns absolute scratch roots without a trailing slash
+ */
+function scratchRoots(): Promise<string[]> {
+    scratchRootsCache ??= resolveScratchRoots();
+    return scratchRootsCache;
 }
 
 /**
@@ -149,8 +161,9 @@ async function gitProject(
  * recorded in `.git/HEAD`, when it has one.
  * - Linked worktree: `.git` is a file pointing into the main repo, so the
  * name is the main repo name and the key comes from the branch.
- * - Plain directory (no `.git` up to the home directory): the directory
- * basename with no key, so a non-git project still gets a prefix.
+ * - Plain directory (no `.git` up to the home directory, or up to the
+ * filesystem root outside home): the directory basename with no key, so a
+ * non-git project still gets a prefix.
  * - Scratch dirs (chats, tmp), the home directory, the filesystem root and
  * unreadable paths → null, the session keeps the auto-title.
  * @param dir session directory

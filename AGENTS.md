@@ -245,9 +245,10 @@ inside its adapter rather than duplicating it in each prompt helper.
   assertions over internals.
 - Fixtures (plain git projects — one on a keyed branch — a linked
   worktree pair, a symlinked `.git` entry, and a non-git directory) are
-  created in a fresh sibling directory of the checkout: the plugin ignores
-  sessions in temp/scratch directories and walks up to the nearest `.git`,
-  so a non-git fixture inside the checkout would resolve to this repo.
+  created under `.test-fixtures/` in the checkout, because the plugin
+  ignores sessions in temp/scratch directories. The suite mocks `homedir()`
+  to `.test-fixtures/`, so the walk up to the nearest `.git` stops there
+  and never reaches this repo.
 - PR cases hit the real `gh` CLI (`gh auth login` required); keep them few
   and stable.
 - Every behavior change updates or adds tests before the task is done; all

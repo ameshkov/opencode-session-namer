@@ -43,14 +43,23 @@ type Ctx = Parameters<Plugin>[0];
 
 // Portable fixtures: plain git projects (one on a keyed branch, one
 // branchless), a linked-worktree pair, a symlinked `.git` entry, and a
-// directory with no `.git` at all. They live in a fresh sibling directory
-// of the checkout (not inside it, and not in tmp): the plugin walks up to
-// the nearest `.git`, so a fixture inside the checkout would resolve to
-// this repo's root, and sessions in temp/scratch locations are ignored.
+// directory with no `.git` at all. They live in `.test-fixtures/` inside
+// the checkout (not in tmp: sessions in temp/scratch locations are
+// ignored). `homedir()` is mocked to that directory, so the plugin's walk
+// up to the nearest `.git` stops there instead of reaching this repo.
+vi.mock('node:os', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('node:os')>();
+    const path = await import('node:path');
+    const url = await import('node:url');
+    const fixturesHome = path.join(
+        path.dirname(path.dirname(url.fileURLToPath(import.meta.url))),
+        '.test-fixtures',
+    );
+    const mocked = { ...actual, homedir: () => fixturesHome };
+    return { ...mocked, default: mocked };
+});
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const fixtures = await fsp.mkdtemp(
-    join(dirname(repoRoot), 'session-namer-fixtures-'),
-);
+const fixtures = join(repoRoot, '.test-fixtures');
 const gitProject = join(fixtures, 'browser-extension');
 const keyedProject = join(fixtures, 'keyed-project');
 const camelProject = join(fixtures, 'CamelProject');
@@ -64,6 +73,9 @@ const worktree = join(fixtures, 'wt', 'fix-AG-56856');
 let symlinkSupported = false;
 
 beforeAll(async () => {
+    // start clean: a leftover symlink from an interrupted run would make
+    // the symlink fixture fail and skip its test
+    await fsp.rm(fixtures, { recursive: true, force: true });
     await fsp.mkdir(join(gitProject, '.git'), { recursive: true });
     await fsp.mkdir(join(keyedProject, '.git'), { recursive: true });
     await fsp.mkdir(join(camelProject, '.git'), { recursive: true });
@@ -731,6 +743,28 @@ describe('session-namer', () => {
         });
         expect(updates).toHaveLength(0);
     });
+
+    // `/usr` sits outside the (mocked) home and has no `.git` up to the
+    // root, while the test process runs inside this repo: the walk must
+    // stop at `/` instead of resolving `.git` against the process cwd.
+    it.skipIf(process.platform === 'win32')(
+        'labels a non-git directory outside home by its name',
+        async () => {
+            await writeConfig({});
+            const session = freshSession({ directory: '/usr' });
+            const { client, updates } = makeClient({
+                session,
+                firstUserText: 'fix it',
+            });
+            const hooks = await SessionNamer({ client } as Ctx);
+            await drive(hooks, session, {
+                autoTitle: 'Fixing the flaky test',
+                updates,
+            });
+            expect(updates).toHaveLength(1);
+            expect(updates[0]?.body.title).toBe('[usr] Fixing the flaky test');
+        },
+    );
 
     it('renames exactly once even across later idles', async () => {
         await writeConfig({});

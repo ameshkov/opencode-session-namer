@@ -19,9 +19,10 @@ An [opencode](https://opencode.ai) plugin that gives sessions meaningful names, 
   project directory name exactly as written on disk (`AdGuardFiltersStats`,
   not `ad guard filters stats`). A session anywhere inside a git checkout is
   named by the checkout root — `repo/src` becomes `[repo]` — and issue keys
-  are picked up from the branch name. A directory with no `.git` anywhere up
-  to the home directory uses its own name and gets no key. The home
-  directory and the filesystem root are never labeled. When the built-in
+  are picked up from the branch name. A directory with no `.git` up to the
+  home directory (or up to the filesystem root outside home) uses its own
+  name and gets no key. The home directory and the filesystem root are
+  never labeled. When the built-in
   title has not settled yet (session title still "New session"), the
   descriptive part is derived from the first line of the user message.
 - **Worktrees are detected generically**: a linked worktree has a `.git` *file* pointing into the main repo, so the project label is the main repo directory name and the issue key comes from the worktree branch — no configuration needed, works with any directory layout.
